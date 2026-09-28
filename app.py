@@ -6,7 +6,9 @@ st.set_page_config(page_title="THD 提成测算看板", layout="wide")
 # ----------------- 提点规则定义 -----------------
 def get_senior_op_rate(x):
     """高级运营全额提点率 (X: 万美金)"""
-    if x <= 10:
+    if x <= 0:
+        return 0.0
+    elif x <= 10:
         return 0.0
     elif x <= 40:
         return 0.003
@@ -51,19 +53,27 @@ if uploaded_file is not None:
     records = []
     for _, row in df_input.iterrows():
         ym = str(row["年月"])
-        sales = float(row["销售额"])
-        total_x = float(row["回款金额"]) # 万美金
+        raw_x = float(row["回款金额"])
         
-        # 拆分个人回款 (万美金)
-        my_x = total_x * my_share
+        # 自动识别单位：若数值大于 10000，判定用户填的是“美金”，自动转为“万美金”
+        if raw_x > 10000:
+            total_x = raw_x / 10000.0  # 万美金
+        else:
+            total_x = raw_x            # 万美金
+            
+        total_usd = total_x * 10000.0  # 实际美金
         
-        # 提点率获取
+        # 拆分个人回款
+        my_x = total_x * my_share      # 万美金
+        my_usd = total_usd * my_share  # 实际美金
+        
+        # 获取对应阶梯提点率
         orig_rate = get_senior_op_rate(total_x)
         plan_a_rate = get_senior_op_rate(my_x)
         
-        # 提成计算 (美金)
-        orig_comm = total_x * orig_rate * 10000
-        plan_a_comm = my_x * plan_a_rate * 10000
+        # 计算实际提成（美金）
+        orig_comm = total_usd * orig_rate
+        plan_a_comm = my_usd * plan_a_rate
         
         diff_a = plan_a_comm - orig_comm
         
