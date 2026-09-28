@@ -3,11 +3,6 @@ import pandas as pd
 
 st.set_page_config(page_title="THD 提成测算看板", layout="wide")
 
-# ----------------- 页面自定义 CSS（表头及高亮样式） -----------------
-st.markdown("""
-
-""", unsafe_allow_html=True)
-
 # ----------------- 提点规则定义 -----------------
 def get_senior_op_rate(x):
     """Valerie（高级运营）全额提点率 (X: 万美金)"""
@@ -179,7 +174,20 @@ if uploaded_file is not None:
     valerie_usd_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益($)"]
     valerie_rmb_cols = ["原模式提成(￥)", "Valerie提成(￥)", "差额损益(￥)"]
     
-    # 格式化与高亮设置
+    # 安全着色函数
+    def highlight_valerie_cols(s):
+        styles = [''] * len(s)
+        for i, col_name in enumerate(s.index):
+            if col_name in ["原模式提成(\()", "原模式提成(￥)", "Valerie提成(\))", "Valerie提成(￥)"]:
+                styles[i] = 'background-color: #FFF2CC; font-weight: bold;'
+            elif col_name in ["差额损益($)", "差额损益(￥)"]:
+                val = s[col_name]
+                if isinstance(val, (int, float)) and val < 0:
+                    styles[i] = 'background-color: #FCE4D6; color: red; font-weight: bold;'
+                else:
+                    styles[i] = 'background-color: #FCE4D6; font-weight: bold;'
+        return styles
+
     styled_valerie = (
         df_valerie.style
         .format({
@@ -188,10 +196,7 @@ if uploaded_file is not None:
             **{col: "${:,.0f}" for col in valerie_usd_cols},
             **{col: "￥{:,.0f}" for col in valerie_rmb_cols}
         })
-        # 提成列背景淡黄色高亮
-        .map(lambda _: 'background-color: #FFF2CC; font-weight: bold;', subset=["原模式提成(\()", "原模式提成(￥)", "Valerie提成(\))", "Valerie提成(￥)"])
-        # 差额损益列背景浅橙红/红字高亮
-        .map(lambda v: 'background-color: #FCE4D6; color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else 'background-color: #FCE4D6; font-weight: bold;', subset=["差额损益($)", "差额损益(￥)"])
+        .apply(highlight_valerie_cols, axis=1)
     )
     st.dataframe(styled_valerie, use_container_width=True)
 
@@ -202,7 +207,16 @@ if uploaded_file is not None:
     junior_usd_cols = ["June提成(\()", "Zoey提成(\))"]
     junior_rmb_cols = ["June提成(￥)", "Zoey提成(￥)"]
     
-    # 格式化与高亮设置
+    # 安全着色函数
+    def highlight_junior_cols(s):
+        styles = [''] * len(s)
+        for i, col_name in enumerate(s.index):
+            if col_name in ["June提成($)", "June提成(￥)"]:
+                styles[i] = 'background-color: #DDEBF7; font-weight: bold;'
+            elif col_name in ["Zoey提成($)", "Zoey提成(￥)"]:
+                styles[i] = 'background-color: #E2EFDA; font-weight: bold;'
+        return styles
+
     styled_junior = (
         df_junior.style
         .format({
@@ -211,10 +225,7 @@ if uploaded_file is not None:
             **{col: "${:,.0f}" for col in junior_usd_cols},
             **{col: "￥{:,.0f}" for col in junior_rmb_cols}
         })
-        # June 提成高亮（浅蓝）
-        .map(lambda _: 'background-color: #DDEBF7; font-weight: bold;', subset=["June提成($)", "June提成(￥)"])
-        # Zoey 提成高亮（浅绿）
-        .map(lambda _: 'background-color: #E2EFDA; font-weight: bold;', subset=["Zoey提成($)", "Zoey提成(￥)"])
+        .apply(highlight_junior_cols, axis=1)
     )
     st.dataframe(styled_junior, use_container_width=True)
 
