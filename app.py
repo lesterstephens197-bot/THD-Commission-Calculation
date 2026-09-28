@@ -3,6 +3,11 @@ import pandas as pd
 
 st.set_page_config(page_title="THD 提成测算看板", layout="wide")
 
+# ----------------- 页面自定义 CSS（表头及高亮样式） -----------------
+st.markdown("""
+
+""", unsafe_allow_html=True)
+
 # ----------------- 提点规则定义 -----------------
 def get_senior_op_rate(x):
     """Valerie（高级运营）全额提点率 (X: 万美金)"""
@@ -103,7 +108,7 @@ if uploaded_file is not None:
         june_rate = get_junior_op_rate(june_x)
         zoey_rate = get_junior_op_rate(zoey_x)
         
-        # 提成计算（美金）
+        # 提成计算（美金，取整）
         orig_comm_usd = round(total_usd * orig_rate)
         valerie_comm_usd = round(valerie_usd * valerie_rate)
         june_comm_usd = round(june_usd * june_rate)
@@ -149,7 +154,7 @@ if uploaded_file is not None:
             "June提成(￥)": june_comm_rmb,
             "Zoey回款(万美金)": round(zoey_x),
             "Zoey提点": f"{zoey_rate*100:.2f}%",
-            "Zoey提成($)": zoey_comm_rmb,
+            "Zoey提成($)": zoey_comm_usd,
             "Zoey提成(￥)": zoey_comm_rmb
         })
         
@@ -169,46 +174,49 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # 高亮表头与人民币列样式的函数
-    def render_custom_table(df, format_dict, rmb_cols, diff_cols=[]):
-        styler = df.style.format(format_dict)
-        
-        # 负数标红处理
-        if diff_cols:
-            styler = styler.map(
-                lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
-                subset=diff_cols
-            )
-            
-        # 设置人民币列的表头高亮样式（黄底黑字粗体）
-        styles = []
-        for col in rmb_cols:
-            col_idx = df.columns.get_loc(col) + 1  # 对应 CSS 列位置
-            styles.append({
-                'selector': f'th.col{col_idx-1}',
-                'props': [('background-color', '#fff3cd !important'), ('color', '#856404 !important'), ('font-weight', 'bold !important'), ('border', '1px solid #ffeeba')]
-            })
-            styles.append({
-                'selector': f'td.col{col_idx-1}',
-                'props': [('background-color', '#fffdf5 !important')]  # 数据列微黄背景
-            })
-            
-        styler = styler.set_table_styles(styles, overwrite=False)
-        return styler.to_html()
-
     # ----------------- 看板 2: Valerie (高级运营) -----------------
     st.subheader("📌 2. Valerie (高级运营) 提成对比明细表")
     valerie_usd_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益($)"]
     valerie_rmb_cols = ["原模式提成(￥)", "Valerie提成(￥)", "差额损益(￥)"]
     
-    valerie_format = {
-        "平台总回款(万美金)": "{:,.0f}",
-        "Valerie回款(万美金)": "{:,.0f}",
-        **{col: "${:,.0f}" for col in valerie_usd_cols},
-        **{col: "￥{:,.0f}" for col in valerie_rmb_cols}
-    }
-    
-    html_valerie = render_custom_table(df_valerie, valerie_format, valerie_rmb_cols, subset_diff=["差额损益($)", "差额损益(￥)"])
-    st.write(html_valerie, unsafe_allow_html=True)
+    # 格式化与高亮设置
+    styled_valerie = (
+        df_valerie.style
+        .format({
+            "平台总回款(万美金)": "{:,.0f}",
+            "Valerie回款(万美金)": "{:,.0f}",
+            **{col: "${:,.0f}" for col in valerie_usd_cols},
+            **{col: "￥{:,.0f}" for col in valerie_rmb_cols}
+        })
+        # 提成列背景淡黄色高亮
+        .map(lambda _: 'background-color: #FFF2CC; font-weight: bold;', subset=["原模式提成(\()", "原模式提成(￥)", "Valerie提成(\))", "Valerie提成(￥)"])
+        # 差额损益列背景浅橙红/红字高亮
+        .map(lambda v: 'background-color: #FCE4D6; color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else 'background-color: #FCE4D6; font-weight: bold;', subset=["差额损益($)", "差额损益(￥)"])
+    )
+    st.dataframe(styled_valerie, use_container_width=True)
 
-    st.markdown("
+    st.markdown("---")
+
+    # ----------------- 看板 3: June & Zoey (初级运营) -----------------
+    st.subheader("📌 3. June & Zoey (初级运营) 提成明细表")
+    junior_usd_cols = ["June提成(\()", "Zoey提成(\))"]
+    junior_rmb_cols = ["June提成(￥)", "Zoey提成(￥)"]
+    
+    # 格式化与高亮设置
+    styled_junior = (
+        df_junior.style
+        .format({
+            "June回款(万美金)": "{:,.0f}",
+            "Zoey回款(万美金)": "{:,.0f}",
+            **{col: "${:,.0f}" for col in junior_usd_cols},
+            **{col: "￥{:,.0f}" for col in junior_rmb_cols}
+        })
+        # June 提成高亮（浅蓝）
+        .map(lambda _: 'background-color: #DDEBF7; font-weight: bold;', subset=["June提成($)", "June提成(￥)"])
+        # Zoey 提成高亮（浅绿）
+        .map(lambda _: 'background-color: #E2EFDA; font-weight: bold;', subset=["Zoey提成($)", "Zoey提成(￥)"])
+    )
+    st.dataframe(styled_junior, use_container_width=True)
+
+else:
+    st.info("👈 请在左侧侧边栏上传数据表（Excel 或 CSV）。")
