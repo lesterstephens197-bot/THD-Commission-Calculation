@@ -5,7 +5,7 @@ st.set_page_config(page_title="THD 提成测算看板", layout="wide")
 
 # ----------------- 提点规则定义 -----------------
 def get_senior_op_rate(x):
-    """高级运营全额提点率 (X: 万美金)"""
+    """Valerie（高级运营）全额提点率 (X: 万美金)"""
     if x <= 0:
         return 0.0
     elif x <= 10:
@@ -20,6 +20,20 @@ def get_senior_op_rate(x):
         return 0.005
     else:
         return 0.008
+
+def get_junior_op_rate(x):
+    """June & Zoey（普通运营）全额提点率 (X: 万美金)"""
+    if x <= 0:
+        return 0.0
+    elif x <= 8:
+        return 0.0
+    elif x <= 20:
+        return 0.001
+    elif x <= 30:
+        return 0.0015
+    else:
+        # X > 30 万美金可申请转高级运营，目前依然按最高阶 0.15% 计算
+        return 0.0015
 
 # ----------------- 侧边栏设置 -----------------
 st.sidebar.header("⚙️ 参数配置")
@@ -70,20 +84,31 @@ if uploaded_file is not None:
         total_usd = total_sales_usd * 0.80        # 实际回款美金
         total_x = total_sales_wan * 0.80          # 回款万美金
         
-        # 拆分个人回款 (Valerie)
-        valerie_x = total_x * valerie_share       # 个人回款万美金
-        valerie_usd = total_usd * valerie_share   # 个人回款美金
+        # 拆分各自回款（万美金与美金）
+        valerie_x = total_x * valerie_share
+        valerie_usd = total_usd * valerie_share
+        
+        june_x = total_x * june_share
+        june_usd = total_usd * june_share
+        
+        zoey_x = total_x * zoey_share
+        zoey_usd = total_usd * zoey_share
         
         # 获取对应阶梯提点率
         orig_rate = get_senior_op_rate(total_x)
-        plan_a_rate = get_senior_op_rate(valerie_x)
+        valerie_rate = get_senior_op_rate(valerie_x)
+        june_rate = get_junior_op_rate(june_x)
+        zoey_rate = get_junior_op_rate(zoey_x)
         
         # 计算实际提成（美金）
         orig_comm = total_usd * orig_rate
-        plan_a_comm = valerie_usd * plan_a_rate
+        valerie_comm = valerie_usd * valerie_rate
+        june_comm = june_usd * june_rate
+        zoey_comm = zoey_usd * zoey_rate
         
-        diff_usd = plan_a_comm - orig_comm
-        diff_rmb = diff_usd * exchange_rate       # 换算成人民币 (RMB)
+        # 损益计算（仅针对 Valerie）
+        diff_usd = valerie_comm - orig_comm
+        diff_rmb = diff_usd * exchange_rate
         
         records.append({
             "年月": ym,
@@ -91,23 +116,31 @@ if uploaded_file is not None:
             "平台总回款(80%)(万美金)": total_x,
             "原模式提点": f"{orig_rate*100:.2f}%",
             "原模式提成($)": orig_comm,
-            "拆分后Valerie回款(万美金)": valerie_x,
-            "拆分后Valerie提点": f"{plan_a_rate*100:.2f}%",
-            "拆分后Valerie提成($)": plan_a_comm,
+            "Valerie回款(万美金)": valerie_x,
+            "Valerie提点": f"{valerie_rate*100:.2f}%",
+            "Valerie提成($)": valerie_comm,
             "差额损益($)": diff_usd,
-            "差额损益(￥)": diff_rmb
+            "差额损益(￥)": diff_rmb,
+            "June回款(万美金)": june_x,
+            "June提点": f"{june_rate*100:.2f}%",
+            "June提成($)": june_comm,
+            "Zoey回款(万美金)": zoey_x,
+            "Zoey提点": f"{zoey_rate*100:.2f}%",
+            "Zoey提成($)": zoey_comm
         })
         
     df_res = pd.DataFrame(records)
     
-    # 明细数据表格
-    currency_usd_cols = ["原模式提成(\()", "拆分后Valerie提成(\))", "差额损益($)"]
+    # 明细数据表格格式化
+    currency_usd_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益(\()", "June提成(\))", "Zoey提成($)"]
     
     st.dataframe(
         df_res.style.format({
             "平台总销售额(万美金)": "{:.2f}",
             "平台总回款(80%)(万美金)": "{:.2f}",
-            "拆分后Valerie回款(万美金)": "{:.2f}",
+            "Valerie回款(万美金)": "{:.2f}",
+            "June回款(万美金)": "{:.2f}",
+            "Zoey回款(万美金)": "{:.2f}",
             **{col: "${:,.2f}" for col in currency_usd_cols},
             "差额损益(￥)": "￥{:,.2f}"
         }).map(
