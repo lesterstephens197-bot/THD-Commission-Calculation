@@ -39,7 +39,7 @@ if uploaded_file is not None:
         else:
             df_input = pd.read_excel(uploaded_file)
     except Exception as e:
-        st.error(f"文件读取失败，请检查文件格式: {e}")
+        st.error(f"文件读取失败，请检查文件格式或依赖环境: {e}")
         st.stop()
         
     required_cols = ["年月", "销售额", "回款金额", "回款占比"]
