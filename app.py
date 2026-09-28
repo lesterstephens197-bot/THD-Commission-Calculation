@@ -26,6 +26,10 @@ st.sidebar.header("⚙️ 参数配置")
 
 uploaded_file = st.sidebar.file_uploader("上传数据表 (Excel 或 CSV)", type=["xlsx", "xls", "csv"])
 
+st.sidebar.subheader("基础参数设置")
+return_rate = st.sidebar.number_input("回款占销售额比例 (%)", value=80.0, step=1.0) / 100.0
+usd_to_rmb = st.sidebar.number_input("汇率 (美元兑人民币)", value=6.7, step=0.1)
+
 st.sidebar.subheader("SKU 占比设置 (%)")
 my_share = st.sidebar.number_input("我的 SKU 占比", value=60.0, step=1.0) / 100.0
 june_share = st.sidebar.number_input("June 的 SKU 占比", value=28.0, step=1.0) / 100.0
@@ -44,7 +48,7 @@ if uploaded_file is not None:
         st.error(f"文件读取失败，请检查文件格式或依赖环境: {e}")
         st.stop()
         
-    required_cols = ["年月", "销售额", "回款金额", "回款占比"]
+    required_cols = ["年月", "销售额"]
     if not all(col in df_input.columns for col in required_cols):
         st.error(f"上传表头缺失！需包含以下字段：{required_cols}")
         st.stop()
@@ -53,54 +57,64 @@ if uploaded_file is not None:
     records = []
     for _, row in df_input.iterrows():
         ym = str(row["年月"])
-        raw_x = float(row["回款金额"])
+        raw_sales = float(row["销售额"])
         
-        # 自动识别单位：若数值大于 10000，判定用户填的是“美金”，自动转为“万美金”
-        if raw_x > 10000:
-            total_x = raw_x / 10000.0  # 万美金
+        # 自动识别销售额单位（如果 > 10000 判定为美金原值，转为万美金）
+        if raw_sales > 10000:
+            sales_wan = raw_sales / 10000.0  # 万美金
         else:
-            total_x = raw_x            # 万美金
+            sales_wan = raw_sales            # 万美金
             
-        total_usd = total_x * 10000.0  # 实际美金
+        sales_usd = sales_wan * 10000.0      # 实际美金销售额
+        
+        # 按回款比例计算回款金额
+        total_x = sales_wan * return_rate    # 回款金额 (万美金)
+        total_usd = sales_usd * return_rate  # 回款金额 (实际美金)
         
         # 拆分个人回款
-        my_x = total_x * my_share      # 万美金
-        my_usd = total_usd * my_share  # 实际美金
+        my_x = total_x * my_share            # 个人回款 (万美金)
+        my_usd = total_usd * my_share        # 个人回款 (实际美金)
         
         # 获取对应阶梯提点率
         orig_rate = get_senior_op_rate(total_x)
         plan_a_rate = get_senior_op_rate(my_x)
         
         # 计算实际提成（美金）
-        orig_comm = total_usd * orig_rate
-        plan_a_comm = my_usd * plan_a_rate
+        orig_comm_usd = total_usd * orig_rate
+        plan_a_comm_usd = my_usd * plan_a_rate
         
-        diff_a = plan_a_comm - orig_comm
+        # 计算差额（美金与人民币）
+        diff_usd = plan_a_comm_usd - orig_comm_usd
+        diff_rmb = diff_usd * usd_to_rmb
         
         records.append({
             "年月": ym,
+            "销售额(万美金)": sales_wan,
             "平台总回款(万美金)": total_x,
             "原模式提点": f"{orig_rate*100:.2f}%",
-            "原模式提成": orig_comm,
+            "原模式提成($)": orig_comm_usd,
             "拆分后个人回款(万美金)": my_x,
             "拆分后个人提点": f"{plan_a_rate*100:.2f}%",
-            "拆分后个人提成": plan_a_comm,
-            "差额(损益)": diff_a
+            "拆分后个人提成($)": plan_a_comm_usd,
+            "差额损益($)": diff_usd,
+            "差额损益(￥)": diff_rmb
         })
         
     df_res = pd.DataFrame(records)
     
     # 明细数据表格
-    currency_cols = ["原模式提成", "拆分后个人提成", "差额(损益)"]
-    
     st.dataframe(
         df_res.style.format({
+            "销售额(万美金)": "{:.2f}",
             "平台总回款(万美金)": "{:.2f}",
             "拆分后个人回款(万美金)": "{:.2f}",
-            **{col: "${:,.2f}" for col in currency_cols}
+            "原模式提成($)": "${:,.2f}",
+            "拆分后个人提成($)": "${:,.2f}",
+            "差额损益($)": "${:,.2f}",
+            "差额损益(￥)": "￥{:,.2f}"
         }).map(
             lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
-            subset=["差额(损益)"]
+            subset=["差额损益($)", "差额损益(￥)"]
         ),
         use_container_width=True
     )
