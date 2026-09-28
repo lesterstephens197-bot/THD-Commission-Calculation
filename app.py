@@ -44,9 +44,6 @@ my_share = st.sidebar.number_input("我的 SKU 占比", value=60.0, step=1.0) / 
 june_share = st.sidebar.number_input("June 的 SKU 占比", value=28.0, step=1.0) / 100.0
 zoey_share = st.sidebar.number_input("Zoey 的 SKU 占比", value=12.0, step=1.0) / 100.0
 
-st.sidebar.subheader("方案 C 参数")
-override_rate = st.sidebar.number_input("团队管理提点 (%)", value=0.10, step=0.01) / 100.0
-
 # ----------------- 主界面看板 -----------------
 st.title("📊 HomeDepot (THD) 平台提成多维度数据看板")
 
@@ -86,11 +83,9 @@ if uploaded_file is not None:
         orig_comm = total_x * orig_rate * 10000
         plan_a_comm = my_x * plan_a_rate * 10000
         plan_b_comm = total_x * plan_b_rate * 10000
-        plan_c_comm = (my_x * plan_a_rate + total_x * override_rate) * 10000
         
         diff_a = plan_a_comm - orig_comm
         diff_b = plan_b_comm - orig_comm
-        diff_c = plan_c_comm - orig_comm
         
         records.append({
             "年月": ym,
@@ -100,9 +95,7 @@ if uploaded_file is not None:
             "方案A(拆分后个人高运)": plan_a_comm,
             "方案A损益": diff_a,
             "方案B(正式组长)": plan_b_comm,
-            "方案B损益": diff_b,
-            "方案C(个人高运+团队津贴)": plan_c_comm,
-            "方案C损益": diff_c
+            "方案B损益": diff_b
         })
         
     df_res = pd.DataFrame(records)
@@ -118,12 +111,12 @@ if uploaded_file is not None:
     
     # 趋势对比图表
     st.subheader("📈 提成趋势对比图")
-    chart_data = df_res.set_index("年月")[["原模式(全盘高运)", "方案A(拆分后个人高运)", "方案B(正式组长)", "方案C(个人高运+团队津贴)"]]
+    chart_data = df_res.set_index("年月")[["原模式(全盘高运)", "方案A(拆分后个人高运)", "方案B(正式组长)"]]
     st.line_chart(chart_data)
     
     # 损益柱状图
     st.subheader("📊 各方案对比原模式的月度损益")
-    diff_data = df_res.set_index("年月")[["方案A损益", "方案B损益", "方案C损益"]]
+    diff_data = df_res.set_index("年月")[["方案A损益", "方案B损益"]]
     st.bar_chart(diff_data)
     
     # 详细数据表格
@@ -132,7 +125,7 @@ if uploaded_file is not None:
     formatted_df = df_res.copy()
     currency_cols = [
         "原模式(全盘高运)", "方案A(拆分后个人高运)", "方案A损益", 
-        "方案B(正式组长)", "方案B损益", "方案C(个人高运+团队津贴)", "方案C损益"
+        "方案B(正式组长)", "方案B损益"
     ]
     
     st.dataframe(
@@ -142,7 +135,7 @@ if uploaded_file is not None:
             **{col: "${:,.2f}" for col in currency_cols}
         }).map(
             lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
-            subset=["方案A损益", "方案B损益", "方案C损益"]
+            subset=["方案A损益", "方案B损益"]
         ),
         use_container_width=True
     )
