@@ -39,13 +39,14 @@ st.sidebar.header("⚙️ 参数配置")
 
 uploaded_file = st.sidebar.file_uploader("上传数据表 (Excel 或 CSV)", type=["xlsx", "xls", "csv"])
 
+st.sidebar.subheader("回款与汇率设置")
+payback_share = st.sidebar.number_input("回款占销售额比例 (%)", value=80.0, step=1.0) / 100.0
+exchange_rate = st.sidebar.number_input("美元兑人民币汇率", value=6.70, step=0.01)
+
 st.sidebar.subheader("SKU 占比设置 (%)")
 valerie_share = st.sidebar.number_input("Valerie 的 SKU 占比", value=60.0, step=1.0) / 100.0
 june_share = st.sidebar.number_input("June 的 SKU 占比", value=28.0, step=1.0) / 100.0
 zoey_share = st.sidebar.number_input("Zoey 的 SKU 占比", value=12.0, step=1.0) / 100.0
-
-st.sidebar.subheader("汇率设置")
-exchange_rate = st.sidebar.number_input("美元兑人民币汇率", value=6.70, step=0.01)
 
 # ----------------- 主界面看板 -----------------
 st.title("📊 HomeDepot (THD) 平台运营提成看板")
@@ -82,10 +83,9 @@ if uploaded_file is not None:
             total_sales_wan = raw_sales
             total_sales_usd = raw_sales * 10000.0
 
-        # 回款金额固定按销售额的 80% 计算
-        total_usd = total_sales_usd * 0.80
-        total_x = total_sales_wan * 0.80
-        payback_rate = 0.80
+        # 回款金额按侧边栏设置的“回款占比”计算
+        total_usd = total_sales_usd * payback_share
+        total_x = total_sales_wan * payback_share
         
         # 各自回款（万美金与美金）
         valerie_x = total_x * valerie_share
@@ -122,7 +122,7 @@ if uploaded_file is not None:
             "年月": ym,
             "平台总销售额(万美金)": round(total_sales_wan),
             "平台总回款(万美金)": round(total_x),
-            "回款占比": f"{round(payback_rate*100)}%"
+            "回款占比": f"{round(payback_share * 100)}%"
         })
         
         # 2. Valerie (高级运营) 看板记录（包含双币种）
@@ -174,7 +174,6 @@ if uploaded_file is not None:
     valerie_usd_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益($)"]
     valerie_rmb_cols = ["原模式提成(￥)", "Valerie提成(￥)", "差额损益(￥)"]
     
-    # 安全着色函数
     def highlight_valerie_cols(s):
         styles = [''] * len(s)
         for i, col_name in enumerate(s.index):
@@ -207,7 +206,6 @@ if uploaded_file is not None:
     junior_usd_cols = ["June提成(\()", "Zoey提成(\))"]
     junior_rmb_cols = ["June提成(￥)", "Zoey提成(￥)"]
     
-    # 安全着色函数
     def highlight_junior_cols(s):
         styles = [''] * len(s)
         for i, col_name in enumerate(s.index):
