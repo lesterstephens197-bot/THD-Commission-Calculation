@@ -34,21 +34,6 @@ def get_junior_op_rate(x):
     else:
         return 0.0015
 
-# ----------------- 样式处理函数 -----------------
-def style_rmb_headers(df, rmb_cols):
-    """高亮人民币列的表头和数据列背景色，同时保留负数标红逻辑"""
-    styles = []
-    
-    # 高亮人民币列的表头（浅黄色背景 + 加粗）
-    for col in rmb_cols:
-        col_idx = df.columns.get_loc(col) + 1  # 考虑索引列偏移
-        styles.append({
-            'selector': f'th.col{col_idx-1}',
-            'props': [('background-color', '#fff3cd'), ('color', '#856404'), ('font-weight', 'bold')]
-        })
-        
-    return styles
-
 # ----------------- 侧边栏设置 -----------------
 st.sidebar.header("⚙️ 参数配置")
 
@@ -164,7 +149,7 @@ if uploaded_file is not None:
             "June提成(￥)": june_comm_rmb,
             "Zoey回款(万美金)": round(zoey_x),
             "Zoey提点": f"{zoey_rate*100:.2f}%",
-            "Zoey提成($)": zoey_comm_usd,
+            "Zoey提成($)": zoey_comm_rmb,
             "Zoey提成(￥)": zoey_comm_rmb
         })
         
@@ -184,42 +169,46 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
+    # 高亮表头与人民币列样式的函数
+    def render_custom_table(df, format_dict, rmb_cols, diff_cols=[]):
+        styler = df.style.format(format_dict)
+        
+        # 负数标红处理
+        if diff_cols:
+            styler = styler.map(
+                lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
+                subset=diff_cols
+            )
+            
+        # 设置人民币列的表头高亮样式（黄底黑字粗体）
+        styles = []
+        for col in rmb_cols:
+            col_idx = df.columns.get_loc(col) + 1  # 对应 CSS 列位置
+            styles.append({
+                'selector': f'th.col{col_idx-1}',
+                'props': [('background-color', '#fff3cd !important'), ('color', '#856404 !important'), ('font-weight', 'bold !important'), ('border', '1px solid #ffeeba')]
+            })
+            styles.append({
+                'selector': f'td.col{col_idx-1}',
+                'props': [('background-color', '#fffdf5 !important')]  # 数据列微黄背景
+            })
+            
+        styler = styler.set_table_styles(styles, overwrite=False)
+        return styler.to_html()
+
     # ----------------- 看板 2: Valerie (高级运营) -----------------
     st.subheader("📌 2. Valerie (高级运营) 提成对比明细表")
     valerie_usd_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益($)"]
     valerie_rmb_cols = ["原模式提成(￥)", "Valerie提成(￥)", "差额损益(￥)"]
     
-    st_valerie = df_valerie.style.format({
+    valerie_format = {
         "平台总回款(万美金)": "{:,.0f}",
         "Valerie回款(万美金)": "{:,.0f}",
         **{col: "${:,.0f}" for col in valerie_usd_cols},
         **{col: "￥{:,.0f}" for col in valerie_rmb_cols}
-    }).map(
-        lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
-        subset=["差额损益($)", "差额损益(￥)"]
-    ).set_table_styles(
-        style_rmb_headers(df_valerie, valerie_rmb_cols), overwrite=False
-    )
+    }
     
-    st.dataframe(st_valerie, use_container_width=True)
+    html_valerie = render_custom_table(df_valerie, valerie_format, valerie_rmb_cols, subset_diff=["差额损益($)", "差额损益(￥)"])
+    st.write(html_valerie, unsafe_allow_html=True)
 
-    st.markdown("---")
-
-    # ----------------- 看板 3: June & Zoey (初级运营) -----------------
-    st.subheader("📌 3. June & Zoey (初级运营) 提成明细表")
-    junior_usd_cols = ["June提成(\()", "Zoey提成(\))"]
-    junior_rmb_cols = ["June提成(￥)", "Zoey提成(￥)"]
-    
-    st_junior = df_junior.style.format({
-        "June回款(万美金)": "{:,.0f}",
-        "Zoey回款(万美金)": "{:,.0f}",
-        **{col: "${:,.0f}" for col in junior_usd_cols},
-        **{col: "￥{:,.0f}" for col in junior_rmb_cols}
-    }).set_table_styles(
-        style_rmb_headers(df_junior, junior_rmb_cols), overwrite=False
-    )
-    
-    st.dataframe(st_junior, use_container_width=True)
-
-else:
-    st.info("👈 请在左侧侧边栏上传数据表（Excel 或 CSV）。")
+    st.markdown("
