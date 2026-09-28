@@ -22,7 +22,7 @@ def get_senior_op_rate(x):
         return 0.008
 
 def get_junior_op_rate(x):
-    """June & Zoey（普通运营）全额提点率 (X: 万美金)"""
+    """June & Zoey（初级运营）全额提点率 (X: 万美金)"""
     if x <= 0:
         return 0.0
     elif x <= 8:
@@ -32,7 +32,6 @@ def get_junior_op_rate(x):
     elif x <= 30:
         return 0.0015
     else:
-        # X > 30 万美金可申请转高级运营，目前按最高阶 0.15% 计算
         return 0.0015
 
 # ----------------- 侧边栏设置 -----------------
@@ -48,8 +47,8 @@ zoey_share = st.sidebar.number_input("Zoey 的 SKU 占比", value=12.0, step=1.0
 st.sidebar.subheader("汇率设置")
 exchange_rate = st.sidebar.number_input("美元兑人民币汇率", value=6.70, step=0.01)
 
-# ----------------- 主界面 -----------------
-st.title("📊 HomeDepot (THD) 平台提成独立数据看板")
+# ----------------- 主界面看板 -----------------
+st.title("📊 HomeDepot (THD) 平台运营提成看板")
 
 if uploaded_file is not None:
     try:
@@ -66,28 +65,26 @@ if uploaded_file is not None:
         st.error(f"上传表头缺失！需包含以下字段：{required_cols}")
         st.stop()
 
-    # 数据解析与计算
-    records_valerie = []
-    records_june = []
-    records_zoey = []
+    # 计算核心逻辑
+    valerie_records = []
+    junior_records = []
     
     for _, row in df_input.iterrows():
         ym = str(row["年月"])
         raw_sales = float(row["销售额"])
         
-        # 自动识别销售额单位（美金 vs 万美金）
+        # 自动识别销售额单位
         if raw_sales > 10000:
-            total_sales_usd = raw_sales           # 实际美金
-            total_sales_wan = raw_sales / 10000.0 # 万美金
+            total_sales_usd = raw_sales
+            total_sales_wan = raw_sales / 10000.0
         else:
-            total_sales_wan = raw_sales           # 万美金
-            total_sales_usd = raw_sales * 10000.0 # 实际美金
+            total_sales_wan = raw_sales
+            total_sales_usd = raw_sales * 10000.0
 
-        # 固定回款为销售额的 80%
-        total_usd = total_sales_usd * 0.80        # 实际回款美金
-        total_x = total_sales_wan * 0.80          # 回款万美金
+        total_usd = total_sales_usd * 0.80
+        total_x = total_sales_wan * 0.80
         
-        # 拆分各自回款
+        # 各自回款
         valerie_x = total_x * valerie_share
         valerie_usd = total_usd * valerie_share
         
@@ -97,107 +94,81 @@ if uploaded_file is not None:
         zoey_x = total_x * zoey_share
         zoey_usd = total_usd * zoey_share
         
-        # 获取提点率
+        # 提点率获取
         orig_rate = get_senior_op_rate(total_x)
         valerie_rate = get_senior_op_rate(valerie_x)
         june_rate = get_junior_op_rate(june_x)
         zoey_rate = get_junior_op_rate(zoey_x)
         
-        # 计算提成
+        # 提成计算
         orig_comm = total_usd * orig_rate
         valerie_comm = valerie_usd * valerie_rate
         june_comm = june_usd * june_rate
         zoey_comm = zoey_usd * zoey_rate
         
-        # 差额计算（Valerie）
         diff_usd = valerie_comm - orig_comm
         diff_rmb = diff_usd * exchange_rate
         
-        # 1. Valerie 记录
-        records_valerie.append({
+        # 1. Valerie (高级运营) 看板记录
+        valerie_records.append({
             "年月": ym,
             "平台总销售额(万美金)": total_sales_wan,
             "平台总回款(80%)(万美金)": total_x,
             "原模式提点": f"{orig_rate*100:.2f}%",
             "原模式提成($)": orig_comm,
-            "拆分后回款(万美金)": valerie_x,
-            "拆分后提点": f"{valerie_rate*100:.2f}%",
-            "拆分后提成($)": valerie_comm,
+            "Valerie回款(万美金)": valerie_x,
+            "Valerie提点": f"{valerie_rate*100:.2f}%",
+            "Valerie提成($)": valerie_comm,
             "差额损益($)": diff_usd,
             "差额损益(￥)": diff_rmb
         })
         
-        # 2. June 记录
-        records_june.append({
+        # 2. June & Zoey (初级运营) 看板记录
+        junior_records.append({
             "年月": ym,
             "June回款(万美金)": june_x,
-            "June回款($)": june_usd,
-            "提点": f"{june_rate*100:.2f}%",
-            "提成($)": june_comm,
-            "提成(￥)": june_comm * exchange_rate
+            "June提点": f"{june_rate*100:.2f}%",
+            "June提成($)": june_comm,
+            "Zoey回款(万美金)": zoey_x,
+            "Zoey提点": f"{zoey_rate*100:.2f}%",
+            "Zoey提成($)": zoey_comm
         })
         
-        # 3. Zoey 记录
-        records_zoey.append({
-            "年月": ym,
-            "Zoey回款(万美金)": zoey_x,
-            "Zoey回款($)": zoey_usd,
-            "提点": f"{zoey_rate*100:.2f}%",
-            "提成($)": zoey_comm,
-            "提成(￥)": zoey_comm * exchange_rate
-        })
+    df_valerie = pd.DataFrame(valerie_records)
+    df_junior = pd.DataFrame(junior_records)
+    
+    # ----------------- 看板 1: Valerie (高级运营) -----------------
+    st.subheader("📌 1. Valerie (高级运营) 提成对比明细表")
+    valerie_currency_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益($)"]
+    
+    st.dataframe(
+        df_valerie.style.format({
+            "平台总销售额(万美金)": "{:.2f}",
+            "平台总回款(80%)(万美金)": "{:.2f}",
+            "Valerie回款(万美金)": "{:.2f}",
+            **{col: "${:,.2f}" for col in valerie_currency_cols},
+            "差额损益(￥)": "￥{:,.2f}"
+        }).map(
+            lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
+            subset=["差额损益($)", "差额损益(￥)"]
+        ),
+        use_container_width=True
+    )
 
-    df_valerie = pd.DataFrame(records_valerie)
-    df_june = pd.DataFrame(records_june)
-    df_zoey = pd.DataFrame(records_zoey)
+    st.markdown("---")
 
-    # ----------------- Tab 选项卡分开展示看板 -----------------
-    tab_v, tab_j, tab_z = st.tabs(["👤 Valerie 提成对比看板", "👤 June 提成看板", "👤 Zoey 提成看板"])
-
-    # Valerie 独立看板
-    with tab_v:
-        st.subheader("Valerie (高级运营) 拆分前后提成损益明细表")
-        st.dataframe(
-            df_valerie.style.format({
-                "平台总销售额(万美金)": "{:.2f}",
-                "平台总回款(80%)(万美金)": "{:.2f}",
-                "拆分后回款(万美金)": "{:.2f}",
-                "原模式提成(\()": "\){:,.2f}",
-                "拆分后提成(\()": "\){:,.2f}",
-                "差额损益(\()": "\){:,.2f}",
-                "差额损益(￥)": "￥{:,.2f}"
-            }).map(
-                lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
-                subset=["差额损益($)", "差额损益(￥)"]
-            ),
-            use_container_width=True
-        )
-
-    # June 独立看板
-    with tab_j:
-        st.subheader("June (普通运营) 提成明细表")
-        st.dataframe(
-            df_june.style.format({
-                "June回款(万美金)": "{:.2f}",
-                "June回款(\()": "\){:,.2f}",
-                "提成(\()": "\){:,.2f}",
-                "提成(￥)": "￥{:,.2f}"
-            }),
-            use_container_width=True
-        )
-
-    # Zoey 独立看板
-    with tab_z:
-        st.subheader("Zoey (普通运营) 提成明细表")
-        st.dataframe(
-            df_zoey.style.format({
-                "Zoey回款(万美金)": "{:.2f}",
-                "Zoey回款(\()": "\){:,.2f}",
-                "提成(\()": "\){:,.2f}",
-                "提成(￥)": "￥{:,.2f}"
-            }),
-            use_container_width=True
-        )
+    # ----------------- 看板 2: June & Zoey (初级运营) -----------------
+    st.subheader("📌 2. June & Zoey (初级运营) 提成明细表")
+    junior_currency_cols = ["June提成(\()", "Zoey提成(\))"]
+    
+    st.dataframe(
+        df_junior.style.format({
+            "June回款(万美金)": "{:.2f}",
+            "Zoey回款(万美金)": "{:.2f}",
+            **{col: "${:,.2f}" for col in junior_currency_cols}
+        }),
+        use_container_width=True
+    )
 
 else:
     st.info("👈 请在左侧侧边栏上传数据表（Excel 或 CSV）。")
