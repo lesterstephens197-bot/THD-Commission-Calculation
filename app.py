@@ -66,6 +66,7 @@ if uploaded_file is not None:
         st.stop()
 
     # 计算核心逻辑
+    total_records = []
     valerie_records = []
     junior_records = []
     
@@ -81,8 +82,10 @@ if uploaded_file is not None:
             total_sales_wan = raw_sales
             total_sales_usd = raw_sales * 10000.0
 
+        # 回款金额固定按销售额的 80% 计算
         total_usd = total_sales_usd * 0.80
         total_x = total_sales_wan * 0.80
+        payback_rate = 0.80
         
         # 各自回款
         valerie_x = total_x * valerie_share
@@ -109,11 +112,18 @@ if uploaded_file is not None:
         diff_usd = valerie_comm - orig_comm
         diff_rmb = diff_usd * exchange_rate
         
-        # 1. Valerie (高级运营) 看板记录
-        valerie_records.append({
+        # 1. 平台总数据看板记录
+        total_records.append({
             "年月": ym,
             "平台总销售额(万美金)": total_sales_wan,
-            "平台总回款(80%)(万美金)": total_x,
+            "平台总回款(万美金)": total_x,
+            "回款占比": f"{payback_rate*100:.0f}%"
+        })
+        
+        # 2. Valerie (高级运营) 看板记录
+        valerie_records.append({
+            "年月": ym,
+            "平台总回款(万美金)": total_x,
             "原模式提点": f"{orig_rate*100:.2f}%",
             "原模式提成($)": orig_comm,
             "Valerie回款(万美金)": valerie_x,
@@ -123,7 +133,7 @@ if uploaded_file is not None:
             "差额损益(￥)": diff_rmb
         })
         
-        # 2. June & Zoey (初级运营) 看板记录
+        # 3. June & Zoey (初级运营) 看板记录
         junior_records.append({
             "年月": ym,
             "June回款(万美金)": june_x,
@@ -134,17 +144,29 @@ if uploaded_file is not None:
             "Zoey提成($)": zoey_comm
         })
         
+    df_total = pd.DataFrame(total_records)
     df_valerie = pd.DataFrame(valerie_records)
     df_junior = pd.DataFrame(junior_records)
     
-    # ----------------- 看板 1: Valerie (高级运营) -----------------
-    st.subheader("📌 1. Valerie (高级运营) 提成对比明细表")
+    # ----------------- 看板 1: 平台总体基础数据 -----------------
+    st.subheader("🌐 1. 平台总体基础数据")
+    st.dataframe(
+        df_total.style.format({
+            "平台总销售额(万美金)": "{:.2f}",
+            "平台总回款(万美金)": "{:.2f}"
+        }),
+        use_container_width=True
+    )
+
+    st.markdown("---")
+
+    # ----------------- 看板 2: Valerie (高级运营) -----------------
+    st.subheader("📌 2. Valerie (高级运营) 提成对比明细表")
     valerie_currency_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益($)"]
     
     st.dataframe(
         df_valerie.style.format({
-            "平台总销售额(万美金)": "{:.2f}",
-            "平台总回款(80%)(万美金)": "{:.2f}",
+            "平台总回款(万美金)": "{:.2f}",
             "Valerie回款(万美金)": "{:.2f}",
             **{col: "${:,.2f}" for col in valerie_currency_cols},
             "差额损益(￥)": "￥{:,.2f}"
@@ -157,8 +179,8 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # ----------------- 看板 2: June & Zoey (初级运营) -----------------
-    st.subheader("📌 2. June & Zoey (初级运营) 提成明细表")
+    # ----------------- 看板 3: June & Zoey (初级运营) -----------------
+    st.subheader("📌 3. June & Zoey (初级运营) 提成明细表")
     junior_currency_cols = ["June提成(\()", "Zoey提成(\))"]
     
     st.dataframe(
