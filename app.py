@@ -74,7 +74,7 @@ if uploaded_file is not None:
         ym = str(row["年月"])
         raw_sales = float(row["销售额"])
         
-        # 自动识别销售额单位
+        # 自动识别销售额单位（美金 vs 万美金）
         if raw_sales > 10000:
             total_sales_usd = raw_sales
             total_sales_wan = raw_sales / 10000.0
@@ -103,15 +103,21 @@ if uploaded_file is not None:
         june_rate = get_junior_op_rate(june_x)
         zoey_rate = get_junior_op_rate(zoey_x)
         
-        # 提成计算（美金转人民币，并四舍五入取整）
-        orig_comm_rmb = round(total_usd * orig_rate * exchange_rate)
-        valerie_comm_rmb = round(valerie_usd * valerie_rate * exchange_rate)
-        june_comm_rmb = round(june_usd * june_rate * exchange_rate)
-        zoey_comm_rmb = round(zoey_usd * zoey_rate * exchange_rate)
+        # 提成计算（美金）
+        orig_comm_usd = round(total_usd * orig_rate)
+        valerie_comm_usd = round(valerie_usd * valerie_rate)
+        june_comm_usd = round(june_usd * june_rate)
+        zoey_comm_usd = round(zoey_usd * zoey_rate)
+        diff_usd = valerie_comm_usd - orig_comm_usd
         
-        diff_rmb = valerie_comm_rmb - orig_comm_rmb
+        # 提成计算（人民币，按汇率换算并取整）
+        orig_comm_rmb = round(orig_comm_usd * exchange_rate)
+        valerie_comm_rmb = round(valerie_comm_usd * exchange_rate)
+        june_comm_rmb = round(june_comm_usd * exchange_rate)
+        zoey_comm_rmb = round(zoey_comm_usd * exchange_rate)
+        diff_rmb = round(diff_usd * exchange_rate)
         
-        # 1. 平台总数据看板记录（整数）
+        # 1. 平台总数据看板记录
         total_records.append({
             "年月": ym,
             "平台总销售额(万美金)": round(total_sales_wan),
@@ -119,26 +125,31 @@ if uploaded_file is not None:
             "回款占比": f"{round(payback_rate*100)}%"
         })
         
-        # 2. Valerie (高级运营) 看板记录（整数人民币）
+        # 2. Valerie (高级运营) 看板记录（包含双币种）
         valerie_records.append({
             "年月": ym,
             "平台总回款(万美金)": round(total_x),
             "原模式提点": f"{orig_rate*100:.2f}%",
+            "原模式提成($)": orig_comm_usd,
             "原模式提成(￥)": orig_comm_rmb,
             "Valerie回款(万美金)": round(valerie_x),
             "Valerie提点": f"{valerie_rate*100:.2f}%",
+            "Valerie提成($)": valerie_comm_usd,
             "Valerie提成(￥)": valerie_comm_rmb,
+            "差额损益($)": diff_usd,
             "差额损益(￥)": diff_rmb
         })
         
-        # 3. June & Zoey (初级运营) 看板记录（整数人民币）
+        # 3. June & Zoey (初级运营) 看板记录（包含双币种）
         junior_records.append({
             "年月": ym,
             "June回款(万美金)": round(june_x),
             "June提点": f"{june_rate*100:.2f}%",
+            "June提成($)": june_comm_usd,
             "June提成(￥)": june_comm_rmb,
             "Zoey回款(万美金)": round(zoey_x),
             "Zoey提点": f"{zoey_rate*100:.2f}%",
+            "Zoey提成($)": zoey_comm_usd,
             "Zoey提成(￥)": zoey_comm_rmb
         })
         
@@ -160,16 +171,18 @@ if uploaded_file is not None:
 
     # ----------------- 看板 2: Valerie (高级运营) -----------------
     st.subheader("📌 2. Valerie (高级运营) 提成对比明细表")
+    valerie_usd_cols = ["原模式提成(\()", "Valerie提成(\))", "差额损益($)"]
     valerie_rmb_cols = ["原模式提成(￥)", "Valerie提成(￥)", "差额损益(￥)"]
     
     st.dataframe(
         df_valerie.style.format({
             "平台总回款(万美金)": "{:,.0f}",
             "Valerie回款(万美金)": "{:,.0f}",
+            **{col: "${:,.0f}" for col in valerie_usd_cols},
             **{col: "￥{:,.0f}" for col in valerie_rmb_cols}
         }).map(
             lambda v: 'color: red; font-weight: bold;' if isinstance(v, (int, float)) and v < 0 else '',
-            subset=["差额损益(￥)"]
+            subset=["差额损益($)", "差额损益(￥)"]
         ),
         use_container_width=True
     )
@@ -178,12 +191,14 @@ if uploaded_file is not None:
 
     # ----------------- 看板 3: June & Zoey (初级运营) -----------------
     st.subheader("📌 3. June & Zoey (初级运营) 提成明细表")
+    junior_usd_cols = ["June提成(\()", "Zoey提成(\))"]
     junior_rmb_cols = ["June提成(￥)", "Zoey提成(￥)"]
     
     st.dataframe(
         df_junior.style.format({
             "June回款(万美金)": "{:,.0f}",
             "Zoey回款(万美金)": "{:,.0f}",
+            **{col: "${:,.0f}" for col in junior_usd_cols},
             **{col: "￥{:,.0f}" for col in junior_rmb_cols}
         }),
         use_container_width=True
